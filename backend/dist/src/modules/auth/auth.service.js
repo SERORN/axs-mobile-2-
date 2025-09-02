@@ -15,6 +15,7 @@ const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
 const prisma_service_1 = require("../../shared/prisma/prisma.service");
 const otp_service_1 = require("./otp.service");
+const bcrypt = require("bcryptjs");
 let AuthService = class AuthService {
     constructor(prisma, jwtService, configService, otpService) {
         this.prisma = prisma;
@@ -39,12 +40,21 @@ let AuthService = class AuthService {
         }
         let user = await this.prisma.user.findUnique({
             where: { phone },
+            include: {
+                organization: true,
+            },
         });
         if (!user) {
             user = await this.prisma.user.create({
                 data: {
                     phone,
+                    email: `temp+${Date.now()}@toothpick.com`,
+                    passwordHash: '',
+                    role: 'CLIENT',
                     verified: true,
+                },
+                include: {
+                    organization: true,
                 },
             });
         }
@@ -52,9 +62,18 @@ let AuthService = class AuthService {
             user = await this.prisma.user.update({
                 where: { id: user.id },
                 data: { verified: true },
+                include: {
+                    organization: true,
+                },
             });
         }
-        const payload = { sub: user.id, phone: user.phone };
+        const payload = {
+            sub: user.id,
+            phone: user.phone,
+            email: user.email,
+            role: user.role,
+            orgId: user.orgId,
+        };
         const access_token = this.jwtService.sign(payload);
         return {
             access_token,
@@ -62,30 +81,45 @@ let AuthService = class AuthService {
                 id: user.id,
                 phone: user.phone,
                 email: user.email,
-                name: user.name,
+                role: user.role,
+                orgId: user.orgId,
+                organization: user.organization,
                 verified: user.verified,
             },
         };
     }
     async register(registerDto) {
-        const { phone, email, name } = registerDto;
+        const { phone, email, password, role = 'CLIENT', organizationName } = registerDto;
         const existingUser = await this.prisma.user.findFirst({
             where: {
                 OR: [
                     { phone },
-                    { email: email || undefined },
+                    { email },
                 ],
             },
         });
         if (existingUser) {
-            throw new common_1.UnauthorizedException('User already exists');
+            throw new common_1.BadRequestException('User already exists with this phone or email');
+        }
+        const passwordHash = await bcrypt.hash(password, 10);
+        let organization = null;
+        if ((role === 'PROVIDER' || role === 'DISTRIBUTOR') && organizationName) {
+            organization = await this.prisma.organization.create({
+                data: {
+                    name: organizationName,
+                    slug: organizationName.toLowerCase().replace(/\s+/g, '-'),
+                    type: role,
+                },
+            });
         }
         const result = await this.otpService.sendOtp(phone);
         const user = await this.prisma.user.create({
             data: {
                 phone,
                 email,
-                name,
+                passwordHash,
+                role,
+                orgId: organization?.id,
                 verified: false,
             },
         });
@@ -99,6 +133,9 @@ let AuthService = class AuthService {
     async validateUser(payload) {
         const user = await this.prisma.user.findUnique({
             where: { id: payload.sub },
+            include: {
+                organization: true,
+            },
         });
         if (!user || !user.verified) {
             throw new common_1.UnauthorizedException('User not found or not verified');
@@ -109,11 +146,8 @@ let AuthService = class AuthService {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             include: {
-                vehicles: true,
-                passes: {
-                    include: {
-                        plaza: true,
-                    },
+                organization: true,
+                orders: {
                     orderBy: {
                         createdAt: 'desc',
                     },

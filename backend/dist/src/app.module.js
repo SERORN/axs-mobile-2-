@@ -13,11 +13,12 @@ const throttler_1 = require("@nestjs/throttler");
 const prisma_module_1 = require("./shared/prisma/prisma.module");
 const auth_module_1 = require("./modules/auth/auth.module");
 const user_module_1 = require("./modules/user/user.module");
-const pricing_module_1 = require("./modules/pricing/pricing.module");
 const payment_module_1 = require("./modules/payment/payment.module");
-const pass_module_1 = require("./modules/pass/pass.module");
 const notification_module_1 = require("./modules/notification/notification.module");
 const health_module_1 = require("./modules/health/health.module");
+const product_module_1 = require("./modules/product/product.module");
+const order_module_1 = require("./modules/order/order.module");
+const category_module_1 = require("./modules/category/category.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -38,10 +39,11 @@ exports.AppModule = AppModule = __decorate([
             health_module_1.HealthModule,
             auth_module_1.AuthModule,
             user_module_1.UserModule,
-            pricing_module_1.PricingModule,
             payment_module_1.PaymentModule,
-            pass_module_1.PassModule,
             notification_module_1.NotificationModule,
+            product_module_1.ProductModule,
+            order_module_1.OrderModule,
+            category_module_1.CategoryModule,
         ],
     })
 ], AppModule);

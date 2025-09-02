@@ -37,20 +37,40 @@ class RegisterDto {
 }
 exports.RegisterDto = RegisterDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: '+1234567890' }),
+    (0, swagger_1.ApiProperty)({ example: '+525512345678' }),
     (0, class_validator_1.IsPhoneNumber)(),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "phone", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: 'user@example.com', required: false }),
-    (0, class_validator_1.IsOptional)(),
+    (0, swagger_1.ApiProperty)({ example: 'user@example.com' }),
     (0, class_validator_1.IsEmail)(),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "email", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: 'John Doe', required: false }),
+    (0, swagger_1.ApiProperty)({ example: 'SecurePassword123', minLength: 8 }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(8),
+    __metadata("design:type", String)
+], RegisterDto.prototype, "password", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        example: 'CLIENT',
+        enum: ['ADMIN', 'PROVIDER', 'DISTRIBUTOR', 'CLIENT'],
+        default: 'CLIENT',
+        required: false
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(['ADMIN', 'PROVIDER', 'DISTRIBUTOR', 'CLIENT']),
+    __metadata("design:type", String)
+], RegisterDto.prototype, "role", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        example: 'Dental Supplies Inc',
+        required: false,
+        description: 'Required for PROVIDER and DISTRIBUTOR roles'
+    }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], RegisterDto.prototype, "name", void 0);
+], RegisterDto.prototype, "organizationName", void 0);
 //# sourceMappingURL=auth.dto.js.map

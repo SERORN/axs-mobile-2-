@@ -1,11 +1,11 @@
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 export declare class WebhookController {
-    private configService;
     private prisma;
+    private configService;
     private stripe;
     private readonly logger;
-    constructor(configService: ConfigService, prisma: PrismaService);
+    constructor(prisma: PrismaService, configService: ConfigService);
     handleStripeWebhook(rawBody: Buffer, signature: string): Promise<{
         received: boolean;
         mode: string;
@@ -16,6 +16,4 @@ export declare class WebhookController {
     private handlePaymentSucceeded;
     private handlePaymentFailed;
     private handleChargeDispute;
-    private defaultValidityFor;
-    private createPassFromPayment;
 }

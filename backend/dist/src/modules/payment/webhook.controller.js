@@ -20,9 +20,9 @@ const config_1 = require("@nestjs/config");
 const prisma_service_1 = require("../../shared/prisma/prisma.service");
 const stripe_1 = require("stripe");
 let WebhookController = WebhookController_1 = class WebhookController {
-    constructor(configService, prisma) {
-        this.configService = configService;
+    constructor(prisma, configService) {
         this.prisma = prisma;
+        this.configService = configService;
         this.logger = new common_1.Logger(WebhookController_1.name);
         const secretKey = this.configService.get('STRIPE_SECRET_KEY');
         if (secretKey) {
@@ -34,25 +34,17 @@ let WebhookController = WebhookController_1 = class WebhookController {
     async handleStripeWebhook(rawBody, signature) {
         const webhookSecret = this.configService.get('STRIPE_WEBHOOK_SECRET');
         if (!this.stripe || !webhookSecret) {
-            console.log('⚠️  Stripe webhook received in MOCK MODE');
-            console.log('📦 Mock webhook data:', rawBody.toString());
-            let body = {};
-            try {
-                body = JSON.parse(rawBody.toString());
-            }
-            catch (e) {
-                console.log('📦 Raw body (not JSON):', rawBody.toString());
-            }
+            this.logger.warn('🔄 Webhook received in mock mode');
+            const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
             if (body?.type === 'payment_intent.succeeded' || !body?.type) {
                 await this.handlePaymentSucceeded({
                     id: body?.data?.object?.id || 'mock_pi_' + Date.now(),
                     amount: body?.data?.object?.amount || 2500,
-                    currency: body?.data?.object?.currency || 'usd',
+                    currency: body?.data?.object?.currency || 'mxn',
                     latest_charge: 'mock_ch_' + Date.now(),
                     metadata: body?.data?.object?.metadata || {
                         userId: 'mock_user_id',
-                        passType: 'DAILY',
-                        plazaId: 'plaza-parking-001'
+                        orderId: 'mock_order_id',
                     }
                 });
             }
@@ -63,10 +55,10 @@ let WebhookController = WebhookController_1 = class WebhookController {
             event = this.stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
         }
         catch (err) {
-            console.error('❌ Webhook signature verification failed:', err.message);
+            this.logger.error('❌ Webhook signature verification failed:', err.message);
             throw new common_1.BadRequestException('Webhook signature verification failed');
         }
-        console.log('✅ Stripe webhook received:', event.type);
+        this.logger.log(`✅ Stripe webhook received: ${event.type}`);
         switch (event.type) {
             case 'payment_intent.succeeded':
                 await this.handlePaymentSucceeded(event.data.object);
@@ -78,133 +70,58 @@ let WebhookController = WebhookController_1 = class WebhookController {
                 await this.handleChargeDispute(event.data.object);
                 break;
             default:
-                console.log(`🔄 Unhandled event type: ${event.type}`);
+                this.logger.log(`🔄 Unhandled event type: ${event.type}`);
         }
         return { received: true };
     }
     async handlePaymentSucceeded(paymentIntent) {
-        console.log('💰 Payment succeeded:', paymentIntent.id);
+        const { id, amount, currency, metadata } = paymentIntent;
+        this.logger.log(`💰 Payment succeeded: ${id}, amount: ${amount} ${currency}`);
         try {
-            const transaction = await this.prisma.transaction.updateMany({
-                where: { stripePaymentId: paymentIntent.id },
+            await this.prisma.payment.updateMany({
+                where: { intentId: id },
                 data: {
-                    status: 'COMPLETED',
-                    stripeChargeId: paymentIntent.latest_charge,
+                    status: 'SUCCEEDED',
+                    capturedAt: new Date(),
                 },
             });
-            if (paymentIntent.metadata?.passType && paymentIntent.metadata?.userId) {
-                await this.createPassFromPayment(paymentIntent);
+            if (metadata?.orderId) {
+                await this.prisma.order.update({
+                    where: { id: metadata.orderId },
+                    data: { paymentStatus: 'PAID' },
+                });
             }
-            console.log('✅ Transaction updated:', transaction.count);
+            this.logger.log(`✅ Payment ${id} processed successfully`);
         }
         catch (error) {
-            console.error('❌ Error handling payment success:', error);
+            this.logger.error(`❌ Error processing payment ${id}:`, error);
         }
     }
     async handlePaymentFailed(paymentIntent) {
-        console.log('❌ Payment failed:', paymentIntent.id);
+        const { id, last_payment_error } = paymentIntent;
+        this.logger.warn(`❌ Payment failed: ${id}, reason: ${last_payment_error?.message}`);
         try {
-            await this.prisma.transaction.updateMany({
-                where: { stripePaymentId: paymentIntent.id },
-                data: { status: 'FAILED' },
+            await this.prisma.payment.updateMany({
+                where: { intentId: id },
+                data: {
+                    status: 'FAILED',
+                },
             });
+            this.logger.log(`✅ Failed payment ${id} recorded`);
         }
         catch (error) {
-            console.error('❌ Error handling payment failure:', error);
+            this.logger.error(`❌ Error recording failed payment ${id}:`, error);
         }
     }
     async handleChargeDispute(dispute) {
-        console.log('⚠️  Charge dispute created:', dispute.id);
-        try {
-            await this.prisma.transaction.updateMany({
-                where: { stripeChargeId: dispute.charge },
-                data: { status: 'CANCELLED' },
-            });
-        }
-        catch (error) {
-            console.error('❌ Error handling charge dispute:', error);
-        }
-    }
-    defaultValidityFor(passType) {
-        const validFrom = new Date();
-        const validUntil = new Date(validFrom.getTime());
-        const v = String(passType).toUpperCase();
-        switch (v) {
-            case 'HOURLY':
-                validUntil.setHours(validUntil.getHours() + 1);
-                break;
-            case 'WEEKLY':
-                validUntil.setDate(validUntil.getDate() + 7);
-                break;
-            case 'MONTHLY':
-                validUntil.setMonth(validUntil.getMonth() + 1);
-                break;
-            case 'DAILY':
-            default:
-                validUntil.setDate(validUntil.getDate() + 1);
-                break;
-        }
-        return { validFrom, validUntil };
-    }
-    async createPassFromPayment(paymentIntent) {
-        const txByPi = await this.prisma.transaction.findFirst({
-            where: { stripePaymentId: paymentIntent.id },
-            select: { passId: true },
-        });
-        if (txByPi?.passId) {
-            const existing = await this.prisma.pass.findUnique({ where: { id: txByPi.passId } });
-            if (existing) {
-                this.logger.log(`Pass ya existía para ${paymentIntent.id}: ${existing.id}`);
-                return existing;
-            }
-        }
-        const userId = String(paymentIntent.metadata?.userId ?? '');
-        const plazaId = String(paymentIntent.metadata?.plazaId ?? 'unknown-plaza');
-        const passType = String(paymentIntent.metadata?.passType ?? 'DAILY');
-        const plazaType = 'DEALERSHIP';
-        if (!userId || !plazaId) {
-            throw new Error('Missing required metadata: userId or plazaId');
-        }
-        let validFrom = paymentIntent.metadata?.validFrom ? new Date(paymentIntent.metadata.validFrom) : null;
-        let validUntil = paymentIntent.metadata?.validUntil ? new Date(paymentIntent.metadata.validUntil) : null;
-        const invalidVF = !validFrom || isNaN(validFrom.getTime());
-        const invalidVU = !validUntil || isNaN(validUntil.getTime());
-        if (invalidVF || invalidVU) {
-            const def = this.defaultValidityFor(passType);
-            validFrom = def.validFrom;
-            validUntil = def.validUntil;
-        }
-        const pass = await this.prisma.pass.create({
-            data: {
-                user: { connect: { id: userId } },
-                type: passType,
-                amount: Math.round((paymentIntent.amount ?? 0) / 100),
-                currency: String(paymentIntent.currency ?? 'mxn').toLowerCase(),
-                validFrom,
-                validUntil,
-                qrCode: `qr_${paymentIntent.id}`,
-                plaza: {
-                    connectOrCreate: {
-                        where: { id: plazaId },
-                        create: {
-                            id: plazaId,
-                            name: 'Unknown Plaza',
-                            type: plazaType,
-                            address: 'Unknown Address',
-                            city: 'Unknown City',
-                            state: 'Unknown State',
-                        },
-                    },
-                },
-            },
-        });
-        console.log('✅ Pass created:', pass);
+        const { id, charge, reason } = dispute;
+        this.logger.warn(`⚠️ Charge dispute created: ${id}, charge: ${charge}, reason: ${reason}`);
     }
 };
 exports.WebhookController = WebhookController;
 __decorate([
     (0, common_1.Post)('stripe'),
-    (0, swagger_1.ApiOperation)({ summary: 'Handle Stripe webhook events' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Handle Stripe webhooks' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Webhook processed successfully' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Headers)('stripe-signature')),
@@ -215,7 +132,7 @@ __decorate([
 exports.WebhookController = WebhookController = WebhookController_1 = __decorate([
     (0, swagger_1.ApiTags)('Webhooks'),
     (0, common_1.Controller)('webhooks'),
-    __metadata("design:paramtypes", [config_1.ConfigService,
-        prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        config_1.ConfigService])
 ], WebhookController);
 //# sourceMappingURL=webhook.controller.js.map

@@ -250,13 +250,14 @@ export class OrderService {
       }
       acc[providerId].push(item);
       return acc;
-    }, {} as Record<string, typeof cart.items>);
+    }, {} as Record<string, any[]>);
 
     const orders = [];
 
     // Create separate order for each provider
     for (const [providerId, items] of Object.entries(itemsByProvider)) {
-      const orderSubtotal = items.reduce((sum, item) => sum + (item.qty * Number(item.unitPrice)), 0);
+      const typedItems = items as any[]; // Type assertion for the items array
+      const orderSubtotal = typedItems.reduce((sum, item) => sum + (item.qty * Number(item.unitPrice)), 0);
       const orderTaxes = orderSubtotal * 0.16;
       const orderTotal = orderSubtotal + orderTaxes;
 
@@ -274,7 +275,7 @@ export class OrderService {
           shippingAddress,
           notes,
           items: {
-            create: items.map(item => ({
+            create: typedItems.map(item => ({
               variantId: item.variantId,
               qty: item.qty,
               unitPrice: item.unitPrice,
@@ -301,7 +302,7 @@ export class OrderService {
       orders.push(order);
 
       // Update inventory
-      for (const item of items) {
+      for (const item of typedItems) {
         await this.prisma.variant.update({
           where: { id: item.variantId },
           data: {

@@ -6,59 +6,30 @@ export declare class PaymentService {
     private stripeService;
     constructor(prisma: PrismaService, stripeService: StripeService);
     createPaymentIntent(userId: string, createPaymentDto: CreatePaymentIntentDto): Promise<{
-        paymentIntent: import("stripe").Stripe.Response<import("stripe").Stripe.PaymentIntent> | {
-            id: string;
-            client_secret: string;
-            amount: number;
-            currency: string;
-            status: string;
-            metadata: any;
-        };
-        transactionId: string;
+        paymentId: any;
+        clientSecret: any;
+        intentId: any;
+        amount: number;
+        currency: string;
+        provider: "STRIPE" | "PAYPAL" | "SPEI" | "PIX";
     }>;
-    confirmPayment(confirmPaymentDto: ConfirmPaymentDto): Promise<{
+    confirmPayment(confirmPaymentDto: ConfirmPaymentDto, userId: string): Promise<{
         success: boolean;
-        transaction: {
-            id: string;
-            status: import(".prisma/client").$Enums.TransactionStatus;
-            createdAt: Date;
-            updatedAt: Date;
-            userId: string;
-            description: string | null;
-            amount: import("@prisma/client/runtime/library").Decimal;
-            currency: string;
-            metadata: import("@prisma/client/runtime/library").JsonValue | null;
-            paymentMethod: string;
-            stripePaymentId: string | null;
-            stripeChargeId: string | null;
-            passId: string | null;
-        };
-        paymentIntent: import("stripe").Stripe.Response<import("stripe").Stripe.PaymentIntent> | {
-            id: string;
-            status: string;
-            amount: number;
-            currency: string;
-        };
-        status?: undefined;
+        paymentId: any;
+        status: string;
+        error?: undefined;
     } | {
         success: boolean;
-        status: string;
-        transaction?: undefined;
-        paymentIntent?: undefined;
+        status: any;
+        error: any;
+        paymentId?: undefined;
     }>;
-    getPaymentHistory(userId: string): Promise<{
-        id: string;
-        status: import(".prisma/client").$Enums.TransactionStatus;
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        description: string | null;
-        amount: import("@prisma/client/runtime/library").Decimal;
-        currency: string;
-        metadata: import("@prisma/client/runtime/library").JsonValue | null;
-        paymentMethod: string;
-        stripePaymentId: string | null;
-        stripeChargeId: string | null;
-        passId: string | null;
-    }[]>;
+    getPaymentHistory(userId: string, userRole: string): Promise<any>;
+    private userBelongsToOrg;
+    private calculateFee;
+    private createCommission;
+    private createPayPalOrder;
+    private createSPEIInstruction;
+    private createPIXInstruction;
+    private confirmPayPalOrder;
 }

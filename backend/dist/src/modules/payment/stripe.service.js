@@ -112,19 +112,21 @@ let StripeService = class StripeService {
             throw new Error('Failed to retrieve payment method');
         }
     }
-    async createRefund(chargeId, amount) {
+    async createRefund(chargeId, amount, reason) {
         if (!this.stripe) {
             return {
                 id: `mock_re_${Date.now()}`,
                 charge: chargeId,
                 amount: amount || 1000,
                 status: 'succeeded',
+                reason,
             };
         }
         try {
             const refund = await this.stripe.refunds.create({
                 charge: chargeId,
-                amount: amount ? Math.round(amount * 100) : undefined,
+                amount: amount ? Math.round(amount) : undefined,
+                reason: reason,
             });
             return refund;
         }

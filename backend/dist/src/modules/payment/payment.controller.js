@@ -25,11 +25,11 @@ let PaymentController = class PaymentController {
     async createPaymentIntent(req, createPaymentDto) {
         return this.paymentService.createPaymentIntent(req.user.id, createPaymentDto);
     }
-    async confirmPayment(confirmPaymentDto) {
-        return this.paymentService.confirmPayment(confirmPaymentDto);
+    async confirmPayment(confirmPaymentDto, req) {
+        return this.paymentService.confirmPayment(confirmPaymentDto, req.user.id);
     }
     async getPaymentHistory(req) {
-        return this.paymentService.getPaymentHistory(req.user.id);
+        return this.paymentService.getPaymentHistory(req.user.id, req.user.role);
     }
 };
 exports.PaymentController = PaymentController;
@@ -48,8 +48,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Confirm payment and create pass' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Payment confirmed successfully' }),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [payment_dto_1.ConfirmPaymentDto]),
+    __metadata("design:paramtypes", [payment_dto_1.ConfirmPaymentDto, Object]),
     __metadata("design:returntype", Promise)
 ], PaymentController.prototype, "confirmPayment", null);
 __decorate([

@@ -24,14 +24,14 @@ export class PaymentController {
   @Post('confirm')
   @ApiOperation({ summary: 'Confirm payment and create pass' })
   @ApiResponse({ status: 200, description: 'Payment confirmed successfully' })
-  async confirmPayment(@Body() confirmPaymentDto: ConfirmPaymentDto) {
-    return this.paymentService.confirmPayment(confirmPaymentDto);
+  async confirmPayment(@Body() confirmPaymentDto: ConfirmPaymentDto, @Request() req: any) {
+    return this.paymentService.confirmPayment(confirmPaymentDto, req.user.id);
   }
 
   @Get('history')
   @ApiOperation({ summary: 'Get payment history for current user' })
   @ApiResponse({ status: 200, description: 'Payment history retrieved' })
   async getPaymentHistory(@Request() req: any) {
-    return this.paymentService.getPaymentHistory(req.user.id);
+    return this.paymentService.getPaymentHistory(req.user.id, req.user.role);
   }
 }

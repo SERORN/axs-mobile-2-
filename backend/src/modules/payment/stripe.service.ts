@@ -116,7 +116,7 @@ export class StripeService {
     }
   }
 
-  async createRefund(chargeId: string, amount?: number) {
+  async createRefund(chargeId: string, amount?: number, reason?: string) {
     if (!this.stripe) {
       // Mock mode
       return {
@@ -124,13 +124,15 @@ export class StripeService {
         charge: chargeId,
         amount: amount || 1000,
         status: 'succeeded',
+        reason,
       };
     }
 
     try {
       const refund = await this.stripe.refunds.create({
         charge: chargeId,
-        amount: amount ? Math.round(amount * 100) : undefined,
+        amount: amount ? Math.round(amount) : undefined,
+        reason: reason as any,
       });
 
       return refund;

@@ -32,10 +32,11 @@ export declare class StripeService {
             last4: string;
         };
     }>;
-    createRefund(chargeId: string, amount?: number): Promise<Stripe.Response<Stripe.Refund> | {
+    createRefund(chargeId: string, amount?: number, reason?: string): Promise<Stripe.Response<Stripe.Refund> | {
         id: string;
         charge: string;
         amount: number;
         status: string;
+        reason: string;
     }>;
 }

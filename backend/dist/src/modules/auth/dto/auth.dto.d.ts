@@ -7,6 +7,8 @@ export declare class VerifyOtpDto {
 }
 export declare class RegisterDto {
     phone: string;
-    email?: string;
-    name?: string;
+    email: string;
+    password: string;
+    role?: string;
+    organizationName?: string;
 }

@@ -1,20 +1,22 @@
-export declare enum PassType {
-    HOURLY = "HOURLY",
-    DAILY = "DAILY",
-    WEEKLY = "WEEKLY",
-    MONTHLY = "MONTHLY",
-    GUEST = "GUEST",
-    VIP_LOUNGE = "VIP_LOUNGE"
-}
 export declare class CreatePaymentIntentDto {
-    amount: number;
+    orderId: string;
+    provider: string;
     currency?: string;
-    passType: PassType;
-    plazaId: string;
-    vehicleId?: string;
-    validUntil?: string;
+    metadata?: object;
 }
 export declare class ConfirmPaymentDto {
     paymentIntentId: string;
-    transactionId: string;
+    provider: string;
+    paymentMethodId?: string;
+}
+export declare class RefundPaymentDto {
+    paymentId: string;
+    amount?: number;
+    reason?: string;
+}
+export declare class ProcessWebhookDto {
+    provider: string;
+    eventId: string;
+    payload: object;
+    signature?: string;
 }

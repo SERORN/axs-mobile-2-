@@ -4,16 +4,14 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './shared/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
-import { PricingModule } from './modules/pricing/pricing.module';
 import { PaymentModule } from './modules/payment/payment.module';
-import { PassModule } from './modules/pass/pass.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { HealthModule } from './modules/health/health.module';
-// New AXS modules
-import { TenantModule } from './modules/tenant/tenant.module';
-import { AccessPointModule } from './modules/access-point/access-point.module';
-import { FlowModule } from './modules/flow/flow.module';
-import { VisitModule } from './modules/visit/visit.module';
+
+// ToothPick marketplace modules
+import { ProductModule } from './modules/product/product.module';
+import { OrderModule } from './modules/order/order.module';
+import { CategoryModule } from './modules/category/category.module';
 
 @Module({
   imports: [
@@ -38,16 +36,13 @@ import { VisitModule } from './modules/visit/visit.module';
     // Feature modules
     AuthModule,
     UserModule,
-    PricingModule,
     PaymentModule,
-    PassModule,
     NotificationModule,
     
-    // New AXS modules
-    TenantModule,
-    AccessPointModule,
-    FlowModule,
-    VisitModule,
+    // ToothPick marketplace modules
+    ProductModule,
+    OrderModule,
+    CategoryModule,
   ],
 })
 export class AppModule {}

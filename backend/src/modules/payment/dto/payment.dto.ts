@@ -1,51 +1,87 @@
-import { IsNumber, IsString, IsOptional, IsEnum, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export enum PassType {
-  HOURLY = 'HOURLY',
-  DAILY = 'DAILY',
-  WEEKLY = 'WEEKLY',
-  MONTHLY = 'MONTHLY',
-  GUEST = 'GUEST',
-  VIP_LOUNGE = 'VIP_LOUNGE',
-}
-
 export class CreatePaymentIntentDto {
-  @ApiProperty({ example: 25.99, description: 'Amount in dollars' })
-  @IsNumber()
-  @Min(0.5)
-  amount: number;
+  @ApiProperty({ example: 'order-id-123' })
+  @IsString()
+  orderId: string;
 
-  @ApiProperty({ example: 'usd', required: false })
+  @ApiProperty({ 
+    example: 'STRIPE',
+    enum: ['STRIPE', 'PAYPAL', 'SPEI', 'PIX'],
+    description: 'Payment provider'
+  })
+  @IsEnum(['STRIPE', 'PAYPAL', 'SPEI', 'PIX'])
+  provider: string;
+
+  @ApiProperty({ example: 'MXN', default: 'MXN' })
   @IsOptional()
   @IsString()
   currency?: string;
 
-  @ApiProperty({ enum: PassType, example: PassType.DAILY })
-  @IsEnum(PassType)
-  passType: PassType;
-
-  @ApiProperty({ example: 'plaza-parking-001' })
-  @IsString()
-  plazaId: string;
-
-  @ApiProperty({ example: 'ABC123', required: false })
+  @ApiProperty({ 
+    example: { 
+      saveCard: false,
+      customerId: 'customer-id' 
+    },
+    required: false 
+  })
   @IsOptional()
-  @IsString()
-  vehicleId?: string;
-
-  @ApiProperty({ example: '2024-12-31T23:59:59Z', required: false })
-  @IsOptional()
-  @IsString()
-  validUntil?: string;
+  metadata?: object;
 }
 
 export class ConfirmPaymentDto {
-  @ApiProperty({ example: 'pi_1234567890abcdef' })
+  @ApiProperty({ example: 'pi_1ABC123...' })
   @IsString()
   paymentIntentId: string;
 
-  @ApiProperty({ example: 'trans_1234567890' })
+  @ApiProperty({ 
+    example: 'STRIPE',
+    enum: ['STRIPE', 'PAYPAL', 'SPEI', 'PIX']
+  })
+  @IsEnum(['STRIPE', 'PAYPAL', 'SPEI', 'PIX'])
+  provider: string;
+
+  @ApiProperty({ example: 'pm_1ABC123...', required: false })
+  @IsOptional()
   @IsString()
-  transactionId: string;
+  paymentMethodId?: string;
+}
+
+export class RefundPaymentDto {
+  @ApiProperty({ example: 'payment-id-123' })
+  @IsString()
+  paymentId: string;
+
+  @ApiProperty({ example: 100.50, required: false })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  amount?: number;
+
+  @ApiProperty({ example: 'Customer requested refund', required: false })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class ProcessWebhookDto {
+  @ApiProperty({ 
+    example: 'STRIPE',
+    enum: ['STRIPE', 'PAYPAL', 'SPEI', 'PIX']
+  })
+  @IsEnum(['STRIPE', 'PAYPAL', 'SPEI', 'PIX'])
+  provider: string;
+
+  @ApiProperty({ example: 'evt_1ABC123...' })
+  @IsString()
+  eventId: string;
+
+  @ApiProperty()
+  payload: object;
+
+  @ApiProperty({ example: 'whsec_123...', required: false })
+  @IsOptional()
+  @IsString()
+  signature?: string;
 }
