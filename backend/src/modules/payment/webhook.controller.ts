@@ -120,14 +120,87 @@ export class WebhookController {
         },
       });
 
-      // Create pass if this was a pass purchase
-      if (paymentIntent.metadata?.passType && paymentIntent.metadata?.userId) {
+      // Handle dealership traceability payments
+      const metadata = paymentIntent.metadata || {};
+      
+      if (metadata.serviceOrderId) {
+        await this.handleServiceOrderPayment(paymentIntent, metadata.serviceOrderId);
+      } else if (metadata.purchaseId) {
+        await this.handlePurchasePayment(paymentIntent, metadata.purchaseId);
+      } else if (metadata.passType && metadata.userId) {
+        // Keep existing pass creation logic
         await this.createPassFromPayment(paymentIntent);
       }
 
       console.log('✅ Transaction updated:', transaction.count);
     } catch (error) {
       console.error('❌ Error handling payment success:', error);
+    }
+  }
+
+  private async handleServiceOrderPayment(paymentIntent: Stripe.PaymentIntent, serviceOrderId: string) {
+    console.log('🔧 Handling service order payment:', serviceOrderId);
+    
+    try {
+      const serviceOrder = await this.prisma.serviceOrder.findUnique({
+        where: { id: serviceOrderId },
+      });
+
+      if (!serviceOrder) {
+        console.error('❌ Service order not found:', serviceOrderId);
+        return;
+      }
+
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: {
+          stripePaymentId: paymentIntent.id,
+          status: 'READY', // or 'DELIVERED' based on business rules
+          amount: paymentIntent.amount ? paymentIntent.amount / 100 : serviceOrder.amount,
+          currency: paymentIntent.currency || serviceOrder.currency,
+          metadata: {
+            ...serviceOrder.metadata as any,
+            stripePaymentIntent: paymentIntent.id,
+            paidAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      console.log('✅ Service order payment processed:', serviceOrderId);
+    } catch (error) {
+      console.error('❌ Error handling service order payment:', error);
+    }
+  }
+
+  private async handlePurchasePayment(paymentIntent: Stripe.PaymentIntent, purchaseId: string) {
+    console.log('🚗 Handling purchase payment:', purchaseId);
+    
+    try {
+      const purchase = await this.prisma.purchase.findUnique({
+        where: { id: purchaseId },
+      });
+
+      if (!purchase) {
+        console.error('❌ Purchase not found:', purchaseId);
+        return;
+      }
+
+      await this.prisma.purchase.update({
+        where: { id: purchaseId },
+        data: {
+          stripePaymentId: paymentIntent.id,
+          status: 'PAID',
+          metadata: {
+            ...purchase.metadata as any,
+            stripePaymentIntent: paymentIntent.id,
+            paidAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      console.log('✅ Purchase payment processed:', purchaseId);
+    } catch (error) {
+      console.error('❌ Error handling purchase payment:', error);
     }
   }
 

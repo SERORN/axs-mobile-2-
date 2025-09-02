@@ -14,6 +14,11 @@ import { TenantModule } from './modules/tenant/tenant.module';
 import { AccessPointModule } from './modules/access-point/access-point.module';
 import { FlowModule } from './modules/flow/flow.module';
 import { VisitModule } from './modules/visit/visit.module';
+// Dealership traceability modules
+import { DealershipModule } from './modules/dealership/dealership.module';
+import { CustomerModule } from './modules/customer/customer.module';
+import { PurchaseModule } from './modules/purchase/purchase.module';
+import { ServiceOrderModule } from './modules/service-order/service-order.module';
 
 @Module({
   imports: [
@@ -48,6 +53,12 @@ import { VisitModule } from './modules/visit/visit.module';
     AccessPointModule,
     FlowModule,
     VisitModule,
+
+    // Dealership traceability modules
+    DealershipModule,
+    CustomerModule,
+    PurchaseModule,
+    ServiceOrderModule,
   ],
 })
 export class AppModule {}
