@@ -28,6 +28,8 @@
     "axios": "^1.6.8",
     "react-native-qrcode-svg": "^6.3.0",
     "expo-barcode-scanner": "~12.4.0",
+    "expo-image-picker": "~14.7.1",
+    "expo-camera": "~14.0.5",
     "@stripe/stripe-react-native": "^0.30.0",
     "dayjs": "^1.11.10",
     "expo-secure-store": "~12.5.0",
