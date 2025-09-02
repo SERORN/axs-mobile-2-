@@ -1,0 +1,43 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend: start (3001)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-File",
+        "${workspaceFolder}/scripts/start-backend.ps1"
+      ],
+      "problemMatcher": "$tsc-watch",
+      "isBackground": true
+    },
+    {
+      "label": "Stripe: listen → 3001",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-File",
+        "${workspaceFolder}/scripts/stripe-listen.ps1"
+      ]
+    },
+    {
+      "label": "Test: e2e",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-File",
+        "${workspaceFolder}/scripts/test-e2e.ps1"
+      ]
+    },
+    {
+      "label": "Fix: clear pending",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-File",
+        "${workspaceFolder}/scripts/clear-pending.ps1"
+      ]
+    }
+  ]
+}

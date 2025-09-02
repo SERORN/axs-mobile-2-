@@ -1,0 +1,16 @@
+node_modules
+# === Secrets & sensitive files ===
+.env
+backend/.env
+.env.*
+.env.local
+*.pem
+*.p12
+*.keystore
+*.jks
+*.pfx
+*.key
+*.cert
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist

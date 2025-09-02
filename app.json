@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "AXS",
+    "slug": "axs",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "android": {
+      "package": "com.axs.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.axs.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Esta aplicación necesita acceso a la cámara para escanear códigos QR.",
+        "NSLocationWhenInUseUsageDescription": "Esta aplicación necesita acceso a la ubicación para identificar la plaza más cercana."
+      }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          },
+          "android": {
+            "enableProguardInReleaseBuilds": false
+          }
+        }
+      ],
+      "expo-barcode-scanner",
+      "expo-notifications"
+    ],
+    "scheme": "axs",
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      },
+      "apiBaseUrl": "http://localhost:3000/api",
+      "stripePublishableKey": "pk_test_your_stripe_key_here"
+    }
+  }
+}

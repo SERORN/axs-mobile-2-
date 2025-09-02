@@ -1,0 +1,372 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  phone     String   @unique
+  name      String?
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  vehicles     Vehicle[]
+  passes       Pass[]
+  transactions Transaction[]
+  guestInvites GuestInvite[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id        String   @id @default(cuid())
+  vin       String   @unique // VIN as unique identifier
+  plate     String?  @unique // License plate (optional)
+  brand     String
+  model     String
+  year      Int
+  color     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  purchases        Purchase[]
+  ownershipHistory OwnershipHistory[]
+  passes           Pass[]             @relation("VehiclePasses")
+  serviceOrders    ServiceOrder[]
+
+  // Remove old userId relation to avoid conflicts
+  userId      String?
+  plateNumber String? // Keep for backward compatibility
+  user        User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  Pass        Pass[]
+
+  @@unique([userId, plateNumber])
+  @@map("vehicles")
+}
+
+model Plaza {
+  id          String      @id @default(cuid())
+  name        String
+  address     String
+  city        String
+  state       String
+  zipCode     String?
+  coordinates String? // JSON string with lat/lng
+  type        PlazaType
+  status      PlazaStatus @default(ACTIVE)
+  capacity    Int?
+  occupied    Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  passes Pass[]
+
+  @@map("plazas")
+}
+
+model Pass {
+  id         String     @id @default(cuid())
+  userId     String
+  vehicleId  String?
+  plazaId    String
+  type       PassType
+  status     PassStatus @default(ACTIVE)
+  qrCode     String     @unique
+  validFrom  DateTime
+  validUntil DateTime
+  amount     Decimal    @db.Decimal(10, 2)
+  currency   String     @default("USD")
+  usageCount Int        @default(0)
+  maxUsage   Int?
+  guestName  String? // For guest passes
+  guestPhone String? // For guest passes
+  metadata   Json? // Additional data (lounge details, etc.)
+
+  // New fields for purchase traceability
+  vin        String? // Direct VIN reference
+  purchaseId String? // Link to purchase
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  plaza        Plaza         @relation(fields: [plazaId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  passEvents   PassEvent[]
+
+  // New relations for purchase traceability
+  vehicleByVin  Vehicle?       @relation("VehiclePasses", fields: [vin], references: [vin], onDelete: SetNull)
+  purchase      Purchase?      @relation("PurchasePasses", fields: [purchaseId], references: [id], onDelete: SetNull)
+  serviceOrders ServiceOrder[]
+
+  @@map("passes")
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  userId          String
+  passId          String?
+  amount          Decimal           @db.Decimal(10, 2)
+  currency        String            @default("USD")
+  status          TransactionStatus
+  paymentMethod   String // stripe, apple_pay, google_pay
+  stripePaymentId String?
+  stripeChargeId  String?
+  description     String?
+  metadata        Json?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relations
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pass Pass? @relation(fields: [passId], references: [id], onDelete: SetNull)
+
+  @@map("transactions")
+}
+
+model PassEvent {
+  id        String        @id @default(cuid())
+  passId    String
+  type      PassEventType
+  location  String? // GPS coordinates or plaza name
+  metadata  Json? // Additional event data
+  createdAt DateTime      @default(now())
+
+  // Relations
+  pass Pass @relation(fields: [passId], references: [id], onDelete: Cascade)
+
+  @@map("pass_events")
+}
+
+model GuestInvite {
+  id         String            @id @default(cuid())
+  userId     String
+  guestName  String
+  guestPhone String
+  guestEmail String?
+  plazaId    String?
+  visitDate  DateTime
+  duration   Int // Duration in hours
+  status     GuestInviteStatus @default(PENDING)
+  passId     String? // Generated pass for the guest
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("guest_invites")
+}
+
+model NotificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String // ios, android, web
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_tokens")
+}
+
+// Enums
+enum PlazaType {
+  PARKING
+  RESIDENTIAL
+  CORPORATE
+  LOUNGE
+  TOLLBOOTH
+}
+
+enum PlazaStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum PassType {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+  ANNUAL
+  GUEST
+  VIP_LOUNGE
+}
+
+enum PassStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  USED
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PassEventType {
+  ENTRY
+  EXIT
+  SCAN
+  EXPIRED
+  CANCELLED
+}
+
+enum GuestInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+// New enums for purchase traceability
+enum FinancingType {
+  CASH
+  CREDIT
+  LEASE
+  FINANCED
+}
+
+enum ServiceType {
+  MAINTENANCE
+  WARRANTY
+  CLAIM
+}
+
+enum ServiceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Purchase Traceability Models
+model Dealership {
+  id        String   @id @default(cuid())
+  name      String
+  oem       String // Original Equipment Manufacturer
+  city      String
+  state     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  salespeople Salesperson[]
+  purchases   Purchase[]
+
+  @@map("dealerships")
+}
+
+model Salesperson {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  dealershipId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  dealership Dealership @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  purchases  Purchase[]
+
+  @@map("salespersons")
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  phone     String?  @unique
+  rfc       String?  @unique // RFC for Mexican tax purposes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  purchases        Purchase[]
+  ownershipHistory OwnershipHistory[]
+
+  @@map("customers")
+}
+
+model Purchase {
+  id            String        @id @default(cuid())
+  vin           String
+  customerId    String
+  dealershipId  String
+  salespersonId String
+  purchaseDate  DateTime
+  price         Decimal       @db.Decimal(12, 2)
+  financingType FinancingType
+  warrantyStart DateTime
+  warrantyEnd   DateTime
+  dmsExternalId String? // External DMS identifier
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  vehicle       Vehicle        @relation(fields: [vin], references: [vin], onDelete: Cascade)
+  customer      Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  dealership    Dealership     @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  salesperson   Salesperson    @relation(fields: [salespersonId], references: [id], onDelete: Cascade)
+  passes        Pass[]         @relation("PurchasePasses")
+  serviceOrders ServiceOrder[]
+
+  @@map("purchases")
+}
+
+model OwnershipHistory {
+  id         String    @id @default(cuid())
+  vin        String
+  customerId String
+  from       DateTime
+  to         DateTime?
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  vehicle  Vehicle  @relation(fields: [vin], references: [vin], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("ownership_history")
+}
+
+model ServiceOrder {
+  id          String        @id @default(cuid())
+  vin         String
+  passId      String?
+  type        ServiceType
+  status      ServiceStatus @default(PENDING)
+  insurer     String? // Insurance company for claims
+  amount      Decimal       @db.Decimal(10, 2)
+  description String?
+  closedAt    DateTime?
+  purchaseId  String? // Link to original purchase
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  vehicle  Vehicle   @relation(fields: [vin], references: [vin], onDelete: Cascade)
+  pass     Pass?     @relation(fields: [passId], references: [id], onDelete: SetNull)
+  purchase Purchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+
+  @@map("service_orders")
+}

@@ -1,0 +1,59 @@
+### AXS Backend Smoke Tests (VS Code REST Client or Insomnia/Postman import)
+
+@base = http://localhost:3000/api
+@phone = "+15555550123"
+@jwt = {{login.response.body.token}}
+
+### Health
+GET {{base}}/health
+
+### Send OTP (mock mode if Twilio not configured)
+# @name login
+POST {{base}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "phone": {{phone}}
+}
+
+### Verify OTP (mock 123456)
+POST {{base}}/auth/verify-otp
+Content-Type: application/json
+
+{
+  "phone": {{phone}},
+  "code": "123456"
+}
+
+### Get profile
+GET {{base}}/auth/profile
+Authorization: Bearer {{jwt}}
+
+### Create payment intent
+POST {{base}}/payments/create-intent
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{
+  "amount": 2500,
+  "currency": "usd",
+  "passType": "DAILY",
+  "plazaId": "plaza-parking-001"
+}
+
+### Get user passes
+GET {{base}}/passes
+Authorization: Bearer {{jwt}}
+
+### Consume pass (simulate QR scan)
+POST {{base}}/passes/AXS_test_pass_123/consume
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{
+  "location": "GPS:19.4326,-99.1332",
+  "metadata": {
+    "device": "smoke_test",
+    "scanner": "QRScannerScreen"
+  }
+}
