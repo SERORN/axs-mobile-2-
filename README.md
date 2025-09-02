@@ -1,6 +1,6 @@
 # AXS Mobile App
 
-Aplicación móvil AXS para gestión de accesos con QR estáticos, flujos configurables y multitenencia.
+Aplicación móvil AXS para gestión de accesos con QR estáticos, flujos configurables, multitenencia y **sistema de trazabilidad para concesionarias de vehículos**.
 
 ## 🚀 Características Implementadas
 
@@ -11,18 +11,20 @@ Aplicación móvil AXS para gestión de accesos con QR estáticos, flujos config
 - **Check-in/Check-out** - Con timestamp y fotos obligatorias
 - **Multitenencia** - Separación por tenant/cliente
 - **Autenticación OTP** - Sistema de verificación por SMS
-- **Integración completa con Stripe** - PaymentSheet nativo
+- **Integración completa con Stripe** - PaymentSheet nativo + webhooks
 - **Cola de Operador** - Interface en tiempo real para aprobaciones
 - **Facturación CFDI** - Preparado para México con TimbrApp
 - **Multi-moneda** - Soporte para MXN, USD, etc.
 - **Internacionalización** - es-MX preparado
 - **Configuración EAS** - Listo para build y deploy
+- **🚗 Trazabilidad para Concesionarias** - Sistema completo de compras y órdenes de servicio
 
 ### 🎯 **Casos de Uso Implementados**
 1. **Agencia/Taller Automotriz**: VIN, placas, km, fotos, motivo (servicio/siniestro/garantía)
 2. **Hotel/Estacionamiento**: Placas, habitación, tipo estancia, pago condicional
 3. **Residencial/Corporativo**: Control de visitantes con invitaciones
 4. **Lounges VIP**: Compra de pases con diferentes tiers
+5. **🚗 Concesionarias**: Trazabilidad completa de vehículos desde compra hasta servicio
 
 ### 🛠 Stack Tecnológico
 
@@ -34,11 +36,11 @@ Aplicación móvil AXS para gestión de accesos con QR estáticos, flujos config
 - Expo Camera/ImagePicker para QR y fotos
 
 **Backend:**
-- NestJS + TypeScript
+- NestJS + TypeScript (Puerto 3001)
 - PostgreSQL + Prisma ORM
 - JWT + Passport auth
-- Stripe Connect para pagos
-- Swagger/OpenAPI docs
+- Stripe Connect para pagos + webhooks
+- Swagger/OpenAPI docs automática
 
 **Arquitectura AXS:**
 ```
@@ -47,6 +49,13 @@ Tenant → Sites → AccessPoints (QR estático)
                  Flow (JSON config)
                       ↓
               Visit (check-in/out + photos)
+```
+
+**Arquitectura Trazabilidad:**
+```
+Dealership → Salesperson → Purchase → OwnershipHistory
+                              ↓
+                         ServiceOrder → Stripe Payment
 ```
 
 ## 🎯 Demo y Pruebas
@@ -64,20 +73,37 @@ Tenant → Sites → AccessPoints (QR estático)
 🏨 Hotel Parking:     axs://ap/hotel-presidente-parking-1
 ```
 
-### Base de Datos
+### Base de Datos y Backend
 ```bash
-# Backend
+# Backend (Puerto 3001)
 cd backend
 npm install
 docker-compose up -d        # PostgreSQL + Redis
 npx prisma generate        # Generar cliente
 npx prisma db push        # Deploy schema
 npm run db:seed-axs       # Datos de demo AXS
-npm run start:dev         # API en :3000
+npm run dev               # API en :3001
+
+# Stripe CLI (webhooks)
+npm run stripe:listen:3001  # Conectar webhooks a puerto 3001
 
 # Frontend  
 npm install --legacy-peer-deps
 npm start                 # Expo dev server
+```
+
+### 🚗 **Configuración de Trazabilidad**
+```bash
+# 1. Asegurar que Prisma tenga las nuevas entidades
+npx prisma format
+npx prisma generate
+
+# 2. Ejecutar migración (cuando esté listo)
+npm run prisma:migrate
+
+# 3. Verificar endpoints de trazabilidad
+curl http://localhost:3001/api/docs  # Swagger docs
+curl http://localhost:3001/api/dealerships -H "Authorization: Bearer TOKEN"
 ```
 
 ## 📱 Navegación de la App
@@ -96,9 +122,9 @@ QRScannerScreen → AccessPointFlowScreen → PaymentScreen (si aplica)
 OperatorQueueScreen (cola en tiempo real)
 ```
 
-## 🔧 API Endpoints (Brief Compliance)
+## 🔧 API Endpoints
 
-### Core AXS APIs
+### Core AXS APIs (Puerto 3001)
 ```
 GET  /api/v1/tenants/:slug
 GET  /api/v1/sites?tenant=:id  
@@ -112,6 +138,35 @@ POST /api/v1/visits/:id/approve
 POST /api/v1/visits/:id/deny
 
 GET  /api/v1/queue?site=:id&state=PENDING,CHECKED_IN
+```
+
+### 🚗 **Trazabilidad APIs (Nuevos)**
+```
+# Concesionarias
+GET|POST|PATCH|DELETE /api/dealerships
+GET  /api/dealerships/code/:code
+
+# Clientes
+GET|POST|PATCH|DELETE /api/customers
+GET  /api/customers/email/:email
+GET  /api/customers/phone/:phone
+
+# Vendedores
+GET|POST|PATCH|DELETE /api/salespeople
+GET  /api/salespeople/dealership/:dealershipId
+
+# Compras y Propiedad
+POST /api/vehicles/:id/purchases      # Crea compra + historial propiedad
+GET  /api/vehicles/:id/ownerships     # Historial completo de propiedad
+GET|POST|PATCH|DELETE /api/purchases
+
+# Órdenes de Servicio
+GET|POST|PATCH|DELETE /api/service-orders
+PATCH /api/service-orders/:id/status
+POST  /api/service-orders/:id/pay     # Crear Payment Intent Stripe
+
+# Webhooks (mejorados)
+POST /api/webhooks/stripe             # Soporta serviceOrderId y purchaseId
 ```
 
 ### Legacy APIs (compatibilidad)
@@ -133,6 +188,14 @@ POST /api/v1/passes/:id/consume
 - **operators**: Staff con permisos RBAC
 - **visit_forms**: Respuestas de formularios dinámicos
 
+### 🚗 **Entidades de Trazabilidad (Nuevas)**
+- **dealerships**: Concesionarias con código único
+- **salespeople**: Vendedores por concesionaria  
+- **customers**: Clientes (individuales/empresas)
+- **purchases**: Compras de vehículos + Stripe
+- **ownership_history**: Historial de propietarios
+- **service_orders**: Órdenes de servicio + Stripe
+
 ### Flujo Técnico
 1. **QR Estático** → `axs://ap/agencia-lomas-vehicular-1`
 2. **App resuelve** → `GET /access-points/agencia-lomas-vehicular-1`
@@ -142,6 +205,12 @@ POST /api/v1/passes/:id/consume
 6. **Operador ve** → `GET /queue` (tiempo real)
 7. **Aprobación** → `POST /visits/:id/approve`
 
+### 🚗 **Flujo de Trazabilidad**
+1. **Compra** → `POST /vehicles/:id/purchases` (crea Purchase + OwnershipHistory)
+2. **Servicio** → `POST /service-orders` (crea ServiceOrder)
+3. **Pago** → `POST /service-orders/:id/pay` (Stripe con metadata.serviceOrderId)
+4. **Webhook** → Stripe actualiza status automáticamente
+
 ## Requisitos
 
 - Node 18+
@@ -149,14 +218,53 @@ POST /api/v1/passes/:id/consume
 - Docker para PostgreSQL
 - Cuenta EAS configurada para builds
 
+## 📚 Documentación
+
+### 🚗 **Trazabilidad para Concesionarias**
+- **[Guía Completa](docs/trazabilidad-concesionarias.md)** - Diagrama ER, flujos, ejemplos de API
+- **[Checklist Técnico](docs/checklist-revision-tecnica.md)** - Mejores prácticas y troubleshooting
+
+### Swagger/OpenAPI  
+```bash
+# Iniciar backend
+npm run dev  # Puerto 3001
+
+# Ver documentación automática
+open http://localhost:3001/api/docs
+```
+
+### Comandos Rápidos
+```bash
+# Desarrollo (scripts PowerShell)
+./scripts/start-backend.ps1      # Inicio completo con verificaciones
+./scripts/stripe-listen.ps1      # Webhook listener  
+
+# Prisma
+npm run prisma:format           # Formatear schema
+npm run prisma:generate        # Generar cliente
+npm run prisma:migrate         # Ejecutar migración (cuando esté listo)
+
+# VS Code Tasks (Ctrl+Shift+P → "Tasks: Run Task")
+- Backend: start (3001)
+- Stripe: listen → 3001  
+- Prisma: migrate+generate
+```
+
 ## Instalación
 
 ```bash
 git clone <repo>
-cd axs-mobile
-cp .env.example .env
+cd axs-mobile-2-
+
+# Backend
+cd backend
+npm install
+cp .env.example .env  # Configurar DATABASE_URL, STRIPE_*, etc.
+npm run dev           # Puerto 3001
+
+# Frontend
 npm install --legacy-peer-deps
-npm run start
+npm start
 ```
 
 ## Build producción
@@ -166,4 +274,4 @@ eas build -p android --profile production
 eas build -p ios --profile production
 ```
 
-_Generado 2025-01-02 - Sistema AXS completo según brief técnico_
+_Generado 2025-01-02 - Sistema AXS completo + Trazabilidad para Concesionarias (Puerto 3001)_

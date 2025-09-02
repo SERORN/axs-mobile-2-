@@ -10,7 +10,8 @@
         "${workspaceFolder}/scripts/start-backend.ps1"
       ],
       "problemMatcher": "$tsc-watch",
-      "isBackground": true
+      "isBackground": true,
+      "group": "build"
     },
     {
       "label": "Stripe: listen → 3001",
@@ -19,7 +20,31 @@
       "args": [
         "-File",
         "${workspaceFolder}/scripts/stripe-listen.ps1"
-      ]
+      ],
+      "group": "build"
+    },
+    {
+      "label": "Prisma: migrate+generate",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "prisma:migrate"],
+      "group": "build",
+      "dependsOrder": "sequence",
+      "dependsOn": "Prisma: generate"
+    },
+    {
+      "label": "Prisma: generate",
+      "type": "shell",
+      "command": "npx",
+      "args": ["prisma", "generate"],
+      "group": "build"
+    },
+    {
+      "label": "Prisma: format",
+      "type": "shell",
+      "command": "npx",
+      "args": ["prisma", "format"],
+      "group": "build"
     },
     {
       "label": "Test: e2e",
@@ -28,7 +53,8 @@
       "args": [
         "-File",
         "${workspaceFolder}/scripts/test-e2e.ps1"
-      ]
+      ],
+      "group": "test"
     },
     {
       "label": "Fix: clear pending",
@@ -37,7 +63,8 @@
       "args": [
         "-File",
         "${workspaceFolder}/scripts/clear-pending.ps1"
-      ]
+      ],
+      "group": "build"
     }
   ]
 }

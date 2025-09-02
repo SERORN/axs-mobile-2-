@@ -189,7 +189,8 @@ model Vehicle {
   id        String   @id @default(cuid())
   userId    String
   plate     String?
-  vin       String?
+  vin       String?  @unique  // Make vin unique for traceability
+  plateNumber String? @unique  // Add plateNumber for traceability
   brand     String
   model     String
   year      Int
@@ -203,6 +204,8 @@ model Vehicle {
   visits    Visit[]
   passes    Pass[]     // Keep for backward compatibility
   purchases Purchase[] // Keep for existing purchase traceability
+  ownerships OwnershipHistory[] // Add for traceability
+  serviceOrders ServiceOrder[] // Add for traceability
 
   @@map("vehicles")
 }
@@ -580,118 +583,192 @@ model NotificationToken {
   @@map("notification_tokens")
 }
 
-// Purchase Traceability Models (keep existing)
+// Purchase Traceability Models
 model Dealership {
-  id        String   @id @default(cuid())
-  name      String
-  oem       String // Original Equipment Manufacturer
-  city      String
-  state     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String       @id @default(cuid())
+  code         String       @unique  // Add unique code
+  name         String
+  address      String?      // Add address  
+  city         String
+  state        String
+  phone        String?      // Add phone
+  email        String?      // Add email
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   // Relations
-  salespeople Salesperson[]
-  purchases   Purchase[]
+  salespeople  Salesperson[]
+  purchases    Purchase[]
+  serviceOrders ServiceOrder[] // Add service orders relation
 
   @@map("dealerships")
 }
 
 model Salesperson {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  dealershipId String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String     @id @default(cuid())
+  dealershipId  String
+  name          String
+  email         String?    @unique  // Make email optional
+  phone         String?    // Add phone
+  active        Boolean    @default(true)  // Add active status
+  hiredAt       DateTime?  // Add hired date
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   // Relations
-  dealership Dealership @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
-  purchases  Purchase[]
+  dealership    Dealership @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  purchases     Purchase[]
+  serviceOrders ServiceOrder[] // Add service orders relation
 
   @@map("salespersons")
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  email     String?  @unique
-  phone     String?  @unique
-  rfc       String?  @unique // RFC for Mexican tax purposes
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String      @id @default(cuid())
+  type          CustomerType @default(INDIVIDUAL)  // Add customer type
+  name          String
+  email         String?     @unique
+  phone         String?     @unique
+  taxId         String?     // Add tax ID (RFC in Mexico)
+  address       String?     // Add address
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   // Relations
-  purchases        Purchase[]
-  ownershipHistory OwnershipHistory[]
+  purchases     Purchase[]
+  ownerships    OwnershipHistory[]
+  serviceOrders ServiceOrder[] // Add service orders relation
 
   @@map("customers")
 }
 
 model Purchase {
-  id            String        @id @default(cuid())
-  vin           String
-  customerId    String
-  dealershipId  String
-  salespersonId String
-  purchaseDate  DateTime
-  price         Decimal       @db.Decimal(12, 2)
-  financingType FinancingType
-  warrantyStart DateTime
-  warrantyEnd   DateTime
-  dmsExternalId String? // External DMS identifier
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id             String          @id @default(cuid())
+  vehicleId      String          // Add vehicleId for relation
+  dealershipId   String
+  salespersonId  String?         // Make optional
+  customerId     String
+  purchaseDate   DateTime        @default(now())
+  price          Decimal         @db.Decimal(12,2)
+  currency       String          @default("mxn")  // Add currency
+  paymentMethod  PaymentMethod   @default(CARD)   // Add payment method
+  status         PurchaseStatus  @default(INITIATED) // Add status
+  stripePaymentId String?        @unique          // Add Stripe integration
+  metadata       Json?           // Add metadata
+  
+  // Keep existing fields for backward compatibility
+  vin            String?         // Keep existing vin field
+  financingType  FinancingType?  // Make optional for backward compatibility
+  warrantyStart  DateTime?       // Make optional
+  warrantyEnd    DateTime?       // Make optional
+  dmsExternalId  String?         // Keep external DMS identifier
+  
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   // Relations
-  vehicle       Vehicle        @relation(fields: [vin], references: [vin], onDelete: Cascade)
-  customer      Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  dealership    Dealership     @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
-  salesperson   Salesperson    @relation(fields: [salespersonId], references: [id], onDelete: Cascade)
-  passes        Pass[]         @relation("PurchasePasses")
-  serviceOrders ServiceOrder[]
+  vehicle        Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  customer       Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  dealership     Dealership      @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  salesperson    Salesperson?    @relation(fields: [salespersonId], references: [id], onDelete: SetNull)
+  passes         Pass[]          @relation("PurchasePasses")
+  serviceOrders  ServiceOrder[]
 
+  @@index([vehicleId])
+  @@index([dealershipId])
+  @@index([customerId])
   @@map("purchases")
 }
 
 model OwnershipHistory {
   id         String    @id @default(cuid())
-  vin        String
+  vehicleId  String    // Add vehicleId relation
   customerId String
-  from       DateTime
+  from       DateTime  @default(now())
   to         DateTime?
+  note       String?   // Add note field
   createdAt  DateTime  @default(now())
+  
+  // Keep existing fields for backward compatibility
+  vin        String?   // Keep existing vin field
 
   // Relations
-  vehicle  Vehicle  @relation(fields: [vin], references: [vin], onDelete: Cascade)
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  @@index([vehicleId])
+  @@index([customerId])
   @@map("ownership_history")
 }
 
 model ServiceOrder {
-  id          String        @id @default(cuid())
-  vin         String
-  passId      String?
-  type        ServiceType
-  status      ServiceStatus @default(PENDING)
-  insurer     String? // Insurance company for claims
-  amount      Decimal       @db.Decimal(10, 2)
-  description String?
-  closedAt    DateTime?
-  purchaseId  String? // Link to original purchase
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id              String            @id @default(cuid())
+  orderNumber     String            @unique         // Add unique order number
+  dealershipId    String            // Add dealership relation
+  vehicleId       String            // Add vehicle relation
+  customerId      String            // Add customer relation
+  openedAt        DateTime          @default(now()) // Add opened date
+  closedAt        DateTime?
+  status          ServiceOrderStatus @default(OPEN) // Use new enum
+  work            Json?             // Add work details
+  amount          Decimal?          @db.Decimal(12,2)
+  currency        String            @default("mxn") // Add currency
+  stripePaymentId String?           @unique         // Add Stripe integration
+  metadata        Json?             // Add metadata
+  
+  // Keep existing fields for backward compatibility
+  vin             String?           // Keep existing vin field
+  passId          String?           // Keep pass relation
+  type            ServiceType?      // Make optional
+  insurer         String?           // Keep insurer
+  description     String?           // Keep description
+  purchaseId      String?           // Keep purchase link
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   // Relations
-  vehicle  Vehicle   @relation(fields: [vin], references: [vin], onDelete: Cascade)
-  pass     Pass?     @relation(fields: [passId], references: [id], onDelete: SetNull)
-  purchase Purchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  dealership      Dealership        @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  vehicle         Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  customer        Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pass            Pass?             @relation(fields: [passId], references: [id], onDelete: SetNull)
+  purchase        Purchase?         @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
 
+  @@index([dealershipId])
+  @@index([vehicleId])
+  @@index([customerId])
   @@map("service_orders")
 }
 
 // ===== ENUMS =====
+
+// New enums for dealership traceability
+enum CustomerType {
+  INDIVIDUAL
+  COMPANY
+}
+
+enum PurchaseStatus {
+  INITIATED
+  PAID
+  DELIVERED
+  CANCELED
+}
+
+enum ServiceOrderStatus {
+  OPEN
+  IN_PROGRESS
+  READY
+  DELIVERED
+  CANCELED
+}
+
+enum PaymentMethod {
+  CARD
+  TRANSFER
+  CASH
+  FINANCING
+}
 
 enum AccessPointType {
   VEHICULAR
