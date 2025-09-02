@@ -74,6 +74,14 @@ const industries: Industry[] = [
       isFreeway: true,
     },
   },
+  {
+    id: 'demo',
+    name: 'Demo AXS',
+    description: 'Casos de uso y pruebas del sistema completo',
+    icon: '🎯',
+    color: '#5856D6',
+    screen: 'Demo',
+  },
 ];
 
 const IndustrySelectScreen = ({ navigation }: { navigation: any }) => {

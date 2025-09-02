@@ -9,6 +9,11 @@ import { PaymentModule } from './modules/payment/payment.module';
 import { PassModule } from './modules/pass/pass.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { HealthModule } from './modules/health/health.module';
+// New AXS modules
+import { TenantModule } from './modules/tenant/tenant.module';
+import { AccessPointModule } from './modules/access-point/access-point.module';
+import { FlowModule } from './modules/flow/flow.module';
+import { VisitModule } from './modules/visit/visit.module';
 
 @Module({
   imports: [
@@ -37,6 +42,12 @@ import { HealthModule } from './modules/health/health.module';
     PaymentModule,
     PassModule,
     NotificationModule,
+    
+    // New AXS modules
+    TenantModule,
+    AccessPointModule,
+    FlowModule,
+    VisitModule,
   ],
 })
 export class AppModule {}

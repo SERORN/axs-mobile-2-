@@ -9,6 +9,9 @@ import QRScannerScreen from "./src/screens/QRScannerScreen";
 import QRViewerScreen from "./src/screens/QRViewerScreen";
 import ResidentialScreen from "./src/screens/ResidentialScreen";
 import LoungeScreen from "./src/screens/LoungeScreen";
+import AccessPointFlowScreen from "./src/screens/AccessPointFlowScreen";
+import OperatorQueueScreen from "./src/screens/OperatorQueueScreen";
+import DemoScreen from "./src/screens/DemoScreen";
 import { AuthProvider } from "./src/contexts/AuthContext";
 import { PricingProvider } from "./src/contexts/PricingContext";
 import { StripeProvider } from "@stripe/stripe-react-native";
@@ -75,6 +78,31 @@ export default function App() {
                   headerShown: true, 
                   title: 'Mi Pase',
                   presentation: 'modal' 
+                }}
+              />
+              <Stack.Screen
+                name='AccessPointFlow'
+                component={AccessPointFlowScreen}
+                options={{ 
+                  headerShown: true, 
+                  title: 'Check-in',
+                  presentation: 'modal' 
+                }}
+              />
+              <Stack.Screen
+                name='OperatorQueue'
+                component={OperatorQueueScreen}
+                options={{ 
+                  headerShown: true, 
+                  title: 'Cola de Operador'
+                }}
+              />
+              <Stack.Screen
+                name='Demo'
+                component={DemoScreen}
+                options={{ 
+                  headerShown: true, 
+                  title: 'AXS Demo'
                 }}
               />
             </Stack.Navigator>

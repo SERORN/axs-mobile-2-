@@ -24,7 +24,8 @@
     "migration:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "ts-node prisma/seed.ts"
+    "db:seed": "ts-node prisma/seed.ts",
+    "db:seed-axs": "ts-node prisma/seed-axs.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
@@ -44,7 +45,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
-    "qrcode": "^1.5.3",
+    "qrcode": "^1.5.4",
     "redis": "^4.6.12",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",

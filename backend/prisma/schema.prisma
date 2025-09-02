@@ -10,50 +10,447 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+// ===== CORE AXS ENTITIES (from technical brief) =====
+
+model Tenant {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  logoUrl          String?
+  theme            Json?    // JSON theme configuration
+  country          String   @default("MX")
+  currency         String   @default("MXN")
+  locales          String[] @default(["es-MX"])
+  plan             String   @default("STARTER") // STARTER, PRO, ELITE
+  billingStatus    String   @default("ACTIVE")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  sites        Site[]
+  flows        Flow[]
+  users        TenantUser[]
+  visits       Visit[]
+  operators    Operator[]
+  checklists   Checklist[]
+  exports      Export[]
+  auditLogs    AuditLog[]
+  webhooks     Webhook[]
+  subscriptions Subscription[]
+
+  @@map("tenants")
+}
+
+model Site {
   id        String   @id @default(cuid())
-  email     String?  @unique
-  phone     String   @unique
-  name      String?
-  verified  Boolean  @default(false)
+  tenantId  String
+  name      String
+  address   String
+  lat       Float?
+  lng       Float?
+  timezone  String   @default("America/Mexico_City")
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  vehicles     Vehicle[]
-  passes       Pass[]
-  transactions Transaction[]
-  guestInvites GuestInvite[]
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accessPoints AccessPoint[]
+  visits       Visit[]
+
+  @@map("sites")
+}
+
+model AccessPoint {
+  id       String            @id @default(cuid())
+  siteId   String
+  name     String
+  publicId String            @unique // For QR code generation
+  type     AccessPointType   @default(VEHICULAR)
+  active   Boolean           @default(true)
+  flowId   String?           // Default flow
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Relations
+  site     Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  flow     Flow?     @relation(fields: [flowId], references: [id], onDelete: SetNull)
+  qrTags   QrTag[]
+  visits   Visit[]
+
+  @@map("access_points")
+}
+
+model QrTag {
+  id            String      @id @default(cuid())
+  accessPointId String
+  printedCode   String      @unique // Human readable code
+  status        QrTagStatus @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  accessPoint AccessPoint @relation(fields: [accessPointId], references: [id], onDelete: Cascade)
+
+  @@map("qr_tags")
+}
+
+model Flow {
+  id             String   @id @default(cuid())
+  tenantId       String
+  name           String
+  version        String   @default("1.0")
+  definitionJson Json     // DSL for screens, rules, checklists, payments
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accessPoints AccessPoint[]
+  visits       Visit[]
+
+  @@map("flows")
+}
+
+// ===== USER MANAGEMENT =====
+
+model User {
+  id               String   @id @default(cuid())
+  phoneE164        String   @unique
+  email            String?  @unique
+  name             String?
+  avatarUrl        String?
+  rfc              String?  // For Mexico CFDI
+  preferredLocale  String   @default("es-MX")
+  encryptedProfile Json?    // Encrypted PII
+  verified         Boolean  @default(false)
+  lastLoginAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  tenantUsers      TenantUser[]
+  vehicles         Vehicle[]
+  visits           Visit[]
+  memberships      Membership[]
+  operators        Operator[]
+  passes           Pass[]           // Keep for backward compatibility
+  transactions     Transaction[]    // Keep for backward compatibility  
+  guestInvites     GuestInvite[]    // Keep for backward compatibility
+  auditLogs        AuditLog[]
 
   @@map("users")
 }
 
+model TenantUser {
+  id       String   @id @default(cuid())
+  tenantId String
+  userId   String
+  role     UserRole @default(END_USER)
+  active   Boolean  @default(true)
+  joinedAt DateTime @default(now())
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@map("tenant_users")
+}
+
+model Operator {
+  id          String   @id @default(cuid())
+  userId      String
+  tenantId    String
+  roles       String[] // TENANT_ADMIN, OPERATOR, SUPERVISOR
+  permissions Json?    // JSON permissions object
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Track operations
+  checkinVisits  Visit[] @relation("CheckinOperator")
+  checkoutVisits Visit[] @relation("CheckoutOperator")
+
+  @@unique([userId, tenantId])
+  @@map("operators")
+}
+
+// ===== VEHICLE MANAGEMENT =====
+
 model Vehicle {
   id        String   @id @default(cuid())
-  vin       String   @unique // VIN as unique identifier
-  plate     String?  @unique // License plate (optional)
+  userId    String
+  plate     String?
+  vin       String?
   brand     String
   model     String
   year      Int
   color     String?
+  photoUrl  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  purchases        Purchase[]
-  ownershipHistory OwnershipHistory[]
-  passes           Pass[]             @relation("VehiclePasses")
-  serviceOrders    ServiceOrder[]
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visits    Visit[]
+  passes    Pass[]     // Keep for backward compatibility
+  purchases Purchase[] // Keep for existing purchase traceability
 
-  // Remove old userId relation to avoid conflicts
-  userId      String?
-  plateNumber String? // Keep for backward compatibility
-  user        User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  Pass        Pass[]
-
-  @@unique([userId, plateNumber])
   @@map("vehicles")
 }
+
+// ===== VISIT MANAGEMENT (Core AXS concept) =====
+
+model Visit {
+  id                String     @id @default(cuid())
+  tenantId          String
+  siteId            String
+  accessPointId     String
+  userId            String?    // Nullable for guest mode
+  vehicleId         String?
+  flowId            String?
+  flowSnapshotJson  Json?      // Snapshot of flow definition at time of visit
+  status            VisitStatus @default(PENDING)
+  checkinAt         DateTime?
+  checkoutAt        DateTime?
+  checkinPhotoUrl   String?
+  checkoutPhotoUrl  String?
+  operatorInId      String?    // Operator who approved checkin
+  operatorOutId     String?    // Operator who approved checkout
+  notes             String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  // Relations
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site         Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  accessPoint  AccessPoint  @relation(fields: [accessPointId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  flow         Flow?        @relation(fields: [flowId], references: [id], onDelete: SetNull)
+  operatorIn   Operator?    @relation("CheckinOperator", fields: [operatorInId], references: [id], onDelete: SetNull)
+  operatorOut  Operator?    @relation("CheckoutOperator", fields: [operatorOutId], references: [id], onDelete: SetNull)
+  
+  visitForms   VisitForm[]
+  payments     Payment[]
+  invoices     Invoice[]
+  checklistRuns ChecklistRun[]
+
+  @@map("visits")
+}
+
+model VisitForm {
+  id          String   @id @default(cuid())
+  visitId     String
+  answersJson Json     // Form answers (VIN, km, room number, etc.)
+  files       String[] // Array of file URLs
+  createdAt   DateTime @default(now())
+
+  // Relations
+  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@map("visit_forms")
+}
+
+// ===== PAYMENT MANAGEMENT =====
+
+model Payment {
+  id                   String           @id @default(cuid())
+  tenantId             String
+  visitId              String?
+  amountCents          Int
+  currency             String           @default("MXN")
+  stripePaymentIntentId String?
+  stripeChargeId       String?
+  status               PaymentStatus    @default(PENDING)
+  paidAt               DateTime?
+  feeCents             Int?             // AXS fee
+  partnerFeeCents      Int?             // Client fee
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  // Relations
+  visit Visit? @relation(fields: [visitId], references: [id], onDelete: SetNull)
+
+  @@map("payments")
+}
+
+// ===== INVOICING (CFDI for Mexico) =====
+
+model Invoice {
+  id          String        @id @default(cuid())
+  tenantId    String
+  visitId     String?
+  countryCode String        @default("MX")
+  provider    String        @default("TIMBRAPP")
+  status      InvoiceStatus @default(PENDING)
+  xmlUrl      String?
+  pdfUrl      String?
+  uuid        String?       // Mexico CFDI UUID
+  errorJson   Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  visit Visit? @relation(fields: [visitId], references: [id], onDelete: SetNull)
+
+  @@map("invoices")
+}
+
+// ===== CHECKLIST MANAGEMENT =====
+
+model Checklist {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  schemaJson Json    // Editable schema
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  checklistRuns ChecklistRun[]
+
+  @@map("checklists")
+}
+
+model ChecklistRun {
+  id          String           @id @default(cuid())
+  visitId     String
+  checklistId String
+  answersJson Json
+  result      ChecklistResult  @default(OK)
+  createdAt   DateTime         @default(now())
+
+  // Relations
+  visit     Visit     @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@map("checklist_runs")
+}
+
+// ===== MEMBERSHIP MANAGEMENT =====
+
+model Membership {
+  id        String           @id @default(cuid())
+  tenantId  String
+  userId    String
+  type      MembershipType   @default(REGULAR)
+  level     String?
+  validFrom DateTime
+  validTo   DateTime
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("memberships")
+}
+
+// ===== AUDIT & EXPORT =====
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String
+  actorUserId String?
+  action     String
+  targetType String
+  targetId   String
+  ip         String?
+  userAgent  String?
+  metaJson   Json?
+  at         DateTime @default(now())
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+model Export {
+  id         String       @id @default(cuid())
+  tenantId   String
+  type       ExportType
+  rangeStart DateTime
+  rangeEnd   DateTime
+  fileUrl    String?
+  status     ExportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("exports")
+}
+
+// ===== BILLING & SUBSCRIPTIONS =====
+
+model Plan {
+  id             String @id @default(cuid())
+  code           String @unique // STARTER, PRO, ELITE
+  priceMonthCents Int
+  priceYearCents Int
+  limitsJson     Json   // JSON limits object
+  active         Boolean @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  planId               String
+  stripeSubscriptionId String?
+  status               String   @default("ACTIVE")
+  currentPeriodEnd     DateTime
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// ===== WEBHOOKS =====
+
+model Webhook {
+  id       String   @id @default(cuid())
+  tenantId String
+  url      String
+  events   String[] // Array of event types
+  secret   String
+  active   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("webhooks")
+}
+
+// ===== BACKWARD COMPATIBILITY MODELS =====
+// Keep existing models for backward compatibility
 
 model Plaza {
   id          String      @id @default(cuid())
@@ -109,7 +506,6 @@ model Pass {
   passEvents   PassEvent[]
 
   // New relations for purchase traceability
-  vehicleByVin  Vehicle?       @relation("VehiclePasses", fields: [vin], references: [vin], onDelete: SetNull)
   purchase      Purchase?      @relation("PurchasePasses", fields: [purchaseId], references: [id], onDelete: SetNull)
   serviceOrders ServiceOrder[]
 
@@ -184,83 +580,7 @@ model NotificationToken {
   @@map("notification_tokens")
 }
 
-// Enums
-enum PlazaType {
-  PARKING
-  RESIDENTIAL
-  CORPORATE
-  LOUNGE
-  TOLLBOOTH
-}
-
-enum PlazaStatus {
-  ACTIVE
-  INACTIVE
-  MAINTENANCE
-}
-
-enum PassType {
-  HOURLY
-  DAILY
-  WEEKLY
-  MONTHLY
-  ANNUAL
-  GUEST
-  VIP_LOUNGE
-}
-
-enum PassStatus {
-  ACTIVE
-  EXPIRED
-  CANCELLED
-  USED
-}
-
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  CANCELLED
-  REFUNDED
-}
-
-enum PassEventType {
-  ENTRY
-  EXIT
-  SCAN
-  EXPIRED
-  CANCELLED
-}
-
-enum GuestInviteStatus {
-  PENDING
-  ACCEPTED
-  EXPIRED
-  CANCELLED
-}
-
-// New enums for purchase traceability
-enum FinancingType {
-  CASH
-  CREDIT
-  LEASE
-  FINANCED
-}
-
-enum ServiceType {
-  MAINTENANCE
-  WARRANTY
-  CLAIM
-}
-
-enum ServiceStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-// Purchase Traceability Models
+// Purchase Traceability Models (keep existing)
 model Dealership {
   id        String   @id @default(cuid())
   name      String
@@ -369,4 +689,155 @@ model ServiceOrder {
   purchase Purchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
 
   @@map("service_orders")
+}
+
+// ===== ENUMS =====
+
+enum AccessPointType {
+  VEHICULAR
+  PEDESTRIAN
+}
+
+enum QrTagStatus {
+  ACTIVE
+  REPLACED
+  LOST
+}
+
+enum UserRole {
+  SUPER_ADMIN     // AXS SuperAdmin
+  TENANT_ADMIN    // Client TenantAdmin
+  OPERATOR        // Operator/Guard
+  SUPERVISOR      // Supervisor
+  END_USER        // EndUser/Visitor/Driver
+  INSTALLER       // Installer/Partner
+}
+
+enum VisitStatus {
+  PENDING
+  CHECKED_IN
+  CHECKED_OUT
+  DENIED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum InvoiceStatus {
+  PENDING
+  TIMBRADO
+  ERROR
+}
+
+enum ChecklistResult {
+  OK
+  WARN
+  FAIL
+}
+
+enum MembershipType {
+  REGULAR
+  VIP
+  EMPLOYEE
+  PROVIDER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+}
+
+enum ExportType {
+  OEM
+  INSURER
+  CUSTOM
+}
+
+enum ExportStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+// Existing enums (keep for backward compatibility)
+enum PlazaType {
+  PARKING
+  RESIDENTIAL
+  CORPORATE
+  LOUNGE
+  TOLLBOOTH
+}
+
+enum PlazaStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum PassType {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+  ANNUAL
+  GUEST
+  VIP_LOUNGE
+}
+
+enum PassStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  USED
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PassEventType {
+  ENTRY
+  EXIT
+  SCAN
+  EXPIRED
+  CANCELLED
+}
+
+enum GuestInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+enum FinancingType {
+  CASH
+  CREDIT
+  LEASE
+  FINANCED
+}
+
+enum ServiceType {
+  MAINTENANCE
+  WARRANTY
+  CLAIM
+}
+
+enum ServiceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }

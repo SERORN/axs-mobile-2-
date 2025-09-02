@@ -38,7 +38,14 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ route, navigation }) 
     setScanned(true);
     
     try {
-      // Intentar parsear como JSON si es un QR de AXS
+      // Check if it's an AXS access point QR (new format: axs://ap/<publicId>)
+      if (data.startsWith('axs://ap/')) {
+        const accessPointPublicId = data.replace('axs://ap/', '');
+        await handleAccessPointQR(accessPointPublicId);
+        return;
+      }
+
+      // Legacy: Try to parse as JSON for old QR formats
       const qrData = JSON.parse(data);
       
       if (qrData.type === 'axs-parking' || qrData.type === 'axs-pass') {
@@ -47,12 +54,42 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({ route, navigation }) 
         handleGenericQR(data);
       }
     } catch (error) {
-      // Si no es JSON, tratar como QR genérico o passId directo
-      if (data.startsWith('AXS_') || data.match(/^[a-zA-Z0-9_-]+$/)) {
+      // Check if it might be an access point publicId directly
+      if (data.match(/^[a-zA-Z0-9-_]+$/)) {
+        await handleAccessPointQR(data);
+      } else if (data.startsWith('AXS_')) {
+        // Legacy pass consumption
         await consumePass(data);
       } else {
         handleGenericQR(data);
       }
+    }
+  };
+
+  const handleAccessPointQR = async (accessPointPublicId: string) => {
+    try {
+      // Get access point information and flow
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/access-points/${accessPointPublicId}`);
+      
+      if (!response.ok) {
+        Alert.alert('Error', 'Punto de acceso no encontrado', [
+          { text: 'OK', onPress: () => setScanned(false) }
+        ]);
+        return;
+      }
+
+      const accessPoint = await response.json();
+      
+      // Navigate to flow screen (or create a new FlowScreen component)
+      navigation.navigate('AccessPointFlow', {
+        accessPoint,
+        accessPointPublicId,
+      });
+
+    } catch (error) {
+      Alert.alert('Error de conexión', 'No se pudo conectar al servidor', [
+        { text: 'OK', onPress: () => setScanned(false) }
+      ]);
     }
   };
 
