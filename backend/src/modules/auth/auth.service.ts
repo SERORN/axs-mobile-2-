@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { OtpService } from './otp.service';
 import { LoginDto, VerifyOtpDto, RegisterDto } from './dto/auth.dto';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
@@ -40,13 +41,22 @@ export class AuthService {
     // Find or create user
     let user = await this.prisma.user.findUnique({
       where: { phone },
+      include: {
+        organization: true,
+      },
     });
 
     if (!user) {
       user = await this.prisma.user.create({
         data: {
           phone,
+          email: `temp+${Date.now()}@toothpick.com`, // Temporary email, will be updated
+          passwordHash: '', // Will be set during registration completion
+          role: 'CLIENT', // Default role
           verified: true,
+        },
+        include: {
+          organization: true,
         },
       });
     } else {
@@ -54,11 +64,20 @@ export class AuthService {
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: { verified: true },
+        include: {
+          organization: true,
+        },
       });
     }
 
     // Generate JWT token
-    const payload = { sub: user.id, phone: user.phone };
+    const payload = { 
+      sub: user.id, 
+      phone: user.phone, 
+      email: user.email,
+      role: user.role,
+      orgId: user.orgId,
+    };
     const access_token = this.jwtService.sign(payload);
 
     return {
@@ -67,27 +86,44 @@ export class AuthService {
         id: user.id,
         phone: user.phone,
         email: user.email,
-        name: user.name,
+        role: user.role,
+        orgId: user.orgId,
+        organization: user.organization,
         verified: user.verified,
       },
     };
   }
 
   async register(registerDto: RegisterDto) {
-    const { phone, email, name } = registerDto;
+    const { phone, email, password, role = 'CLIENT', organizationName } = registerDto;
     
     // Check if user already exists
     const existingUser = await this.prisma.user.findFirst({
       where: {
         OR: [
           { phone },
-          { email: email || undefined },
+          { email },
         ],
       },
     });
 
     if (existingUser) {
-      throw new UnauthorizedException('User already exists');
+      throw new BadRequestException('User already exists with this phone or email');
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create organization if user is PROVIDER or DISTRIBUTOR
+    let organization = null;
+    if ((role === 'PROVIDER' || role === 'DISTRIBUTOR') && organizationName) {
+      organization = await this.prisma.organization.create({
+        data: {
+          name: organizationName,
+          slug: organizationName.toLowerCase().replace(/\s+/g, '-'),
+          type: role,
+        },
+      });
     }
 
     // Send OTP for verification
@@ -98,7 +134,9 @@ export class AuthService {
       data: {
         phone,
         email,
-        name,
+        passwordHash,
+        role,
+        orgId: organization?.id,
         verified: false,
       },
     });
@@ -114,6 +152,9 @@ export class AuthService {
   async validateUser(payload: any) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
+      include: {
+        organization: true,
+      },
     });
 
     if (!user || !user.verified) {
@@ -127,11 +168,8 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
-        vehicles: true,
-        passes: {
-          include: {
-            plaza: true,
-          },
+        organization: true,
+        orders: {
           orderBy: {
             createdAt: 'desc',
           },

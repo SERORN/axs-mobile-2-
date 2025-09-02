@@ -35,7 +35,6 @@ model User {
   referredBy     Referral[]     @relation("ReferrerUser")
   auditLogs      AuditLog[]
   exportJobs     ExportJob[]
-  carts          Cart[]
 
   @@map("users")
 }
